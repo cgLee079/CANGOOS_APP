@@ -3,7 +3,7 @@
     android:oneshot="false">
 
     <item
-        android:drawable="@drawable/background_splash"
+        android:drawable="@drawable/background_splash3"
         android:duration="1500"/>
 
 </animation-list>

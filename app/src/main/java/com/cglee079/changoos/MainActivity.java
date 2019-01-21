@@ -1,6 +1,8 @@
 package com.cglee079.changoos;
 
+import android.Manifest;
 import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -15,7 +17,9 @@ import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.util.Log;
+import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -30,7 +34,7 @@ import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MAIN_ACTIVITY";
-    private static final String MY_URL = "http://cglee079.synology.me:7070/";
+    private static final String MY_URL = "http://www.changoos.com";
     private static final String TYPE_IMAGE = "image/*";
     private static final int INPUT_FILE_REQUEST_CODE = 1;
 
@@ -57,7 +61,6 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webvw_main_changoos);
         swipeRefreshLayout = findViewById(R.id.swipelayout_main_refresh);
 
-
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
@@ -67,7 +70,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-
 
         WebSettings webSet = webView.getSettings();
         webSet.setJavaScriptEnabled(true);
@@ -87,8 +89,42 @@ public class MainActivity extends AppCompatActivity {
             webSet.setTextZoom(100);
         }
 
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient(){
+
+            /**Kakao 공유하기 처리**/
+            public static final String INTENT_PROTOCOL_START = "intent:";
+            public static final String INTENT_PROTOCOL_INTENT = "#Intent;";
+            public static final String INTENT_PROTOCOL_END = ";end;";
+            public static final String GOOGLE_PLAY_STORE_PREFIX = "market://details?id=";
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url.startsWith(INTENT_PROTOCOL_START)) {
+                    final int customUrlStartIndex = INTENT_PROTOCOL_START.length();
+                    final int customUrlEndIndex = url.indexOf(INTENT_PROTOCOL_INTENT);
+                    if (customUrlEndIndex < 0) {
+                        return false;
+                    } else {
+                        final String customUrl = url.substring(customUrlStartIndex, customUrlEndIndex);
+                        try {
+                            MainActivity.this.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(customUrl)));
+                        } catch (ActivityNotFoundException e) {
+                            final int packageStartIndex = customUrlEndIndex + INTENT_PROTOCOL_INTENT.length();
+                            final int packageEndIndex = url.indexOf(INTENT_PROTOCOL_END);
+
+                            final String packageName = url.substring(packageStartIndex, packageEndIndex < 0 ? url.length() : packageEndIndex);
+                            MainActivity.this.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(GOOGLE_PLAY_STORE_PREFIX + packageName)));
+                        }
+                        return true;
+                    }
+                } else {
+                    return false;
+                }
+            }
+        });
+
         webView.setWebChromeClient(new WebChromeClient() {
+
             @Override
             public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
                 WebView newwebview = new WebView(MainActivity.this);
@@ -100,12 +136,14 @@ public class MainActivity extends AppCompatActivity {
 
             // For Android Version 5.0+
             // Ref: https://github.com/GoogleChrome/chromium-webview-samples/blob/master/input-file-example/app/src/main/java/inputfilesample/android/chrome/google/com/inputfilesample/MainFragment.java
+            @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
                 System.out.println("WebViewActivity A>5, OS Version : " + Build.VERSION.SDK_INT + "\t onSFC(WV,VCUB,FCP), n=3");
                 if (mFilePathCallback != null) {
                     mFilePathCallback.onReceiveValue(null);
                 }
                 mFilePathCallback = filePathCallback;
+
                 imageChooser();
                 return true;
             }
@@ -115,6 +153,7 @@ public class MainActivity extends AppCompatActivity {
                 if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
                     // Create the File where the photo should go
                     File photoFile = null;
+
                     try {
                         photoFile = createImageFile();
                         takePictureIntent.putExtra("PhotoPath", mCameraPhotoPath);
@@ -158,37 +197,33 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
                 try {
+                    String filename = contentDisposition.replace("attachment", "");
+                    filename = filename.replace("filename=", "");
+                    filename = filename.replaceAll("\"", "");
+                    filename = filename.replaceAll(";", "");
+
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     request.setMimeType(mimeType);
                     request.addRequestHeader("User-Agent", userAgent);
                     request.setDescription("Downloading file");
-                    String fileName = contentDisposition.replace("attachment; fileName=", "");
-                    fileName = fileName.replaceAll("\"", "");
-                    fileName = fileName.replaceAll(";", "");
-                    request.setTitle(Uri.decode(fileName));
+                    request.setTitle(Uri.decode(filename));
                     request.allowScanningByMediaScanner();
                     request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-                    DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                    dm.enqueue(request);
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+
+                    ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
                     toast = Toast.makeText(getApplicationContext(), "다운로드 중..", Toast.LENGTH_SHORT);
                     toast.show();
                 } catch (Exception e) {
 
-                    if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                        // Should we show an explanation?
-                        if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                            toast.cancel();
-                            toast = Toast.makeText(getBaseContext(), "첨부파일 다운로드를 위해\n동의가 필요합니다.", Toast.LENGTH_SHORT);
-                            toast.show();
 
-                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 110);
-                        } else {
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+                        if (toast != null) {
                             toast.cancel();
-                            toast = Toast.makeText(getBaseContext(), "첨부파일 다운로드를 위해\n동의가 필요합니다.", Toast.LENGTH_SHORT);
-                            toast.show();
-                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 110);
                         }
+                        toast = Toast.makeText(getBaseContext(), "첨부파일 다운로드를 위해\n동의가 필요합니다.", Toast.LENGTH_SHORT);
+                        toast.show();
+                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 110);
                     }
                 }
             }
@@ -234,6 +269,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+
         if (requestCode == INPUT_FILE_REQUEST_CODE && resultCode == RESULT_OK) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 if (mFilePathCallback == null) {
@@ -255,13 +291,16 @@ public class MainActivity extends AppCompatActivity {
                 mUploadMessage.onReceiveValue(result);
                 mUploadMessage = null;
             }
-        } else {
+
+        } else if(requestCode == INPUT_FILE_REQUEST_CODE && resultCode != RESULT_OK){
             if (mFilePathCallback != null) mFilePathCallback.onReceiveValue(null);
             if (mUploadMessage != null) mUploadMessage.onReceiveValue(null);
             mFilePathCallback = null;
             mUploadMessage = null;
             super.onActivityResult(requestCode, resultCode, data);
         }
+
+
     }
 
     private Uri getResultUri(Intent data) {
