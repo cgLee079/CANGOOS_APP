@@ -229,9 +229,21 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        webView.loadUrl(MY_URL);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        
+        String url = MY_URL;
+
+        //앱으로보기 클릭 시
+        if(getIntent().getData() != null) {
+            url += getIntent().getData().getQueryParameter("path");
+        }
+
+        webView.loadUrl(url);
+    }
 
     @Override
     public void onBackPressed() {
