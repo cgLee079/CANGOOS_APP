@@ -238,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
         String url = MY_URL;
 
         //앱으로보기 클릭 시
-        if(getIntent().getData() != null) {
+        if(getIntent().getData() != null && getIntent().getData().getQueryParameter("key") != null) {
             url += getIntent().getData().getQueryParameter("path");
         }
 
