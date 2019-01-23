@@ -12,14 +12,11 @@ import android.os.Environment;
 import android.os.Message;
 import android.provider.MediaStore;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.util.Log;
-import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
-import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -229,36 +226,42 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        webView.loadUrl(MY_URL);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        
-        String url = MY_URL;
 
+        Log.i("onResume", "##########################################");
+        Log.i("onResume",      this.isTaskRoot() + "");
+
+        Log.i("###", webView.toString());
         //앱으로보기 클릭 시
-        if(getIntent().getData() != null && getIntent().getData().getQueryParameter("key") != null) {
-            url += getIntent().getData().getQueryParameter("path");
+        if(getIntent().getData() != null && getIntent().getData().getQueryParameter("path") != null) {
+            Log.i("onResume", "앱으로보기####");
+            String url = MY_URL + getIntent().getData().getQueryParameter("path");
+            webView.loadUrl(url);
         }
 
-        webView.loadUrl(url);
+
     }
 
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
+        if (webView.canGoBack()  ) {
             webView.goBack();
         } else {
-            if (System.currentTimeMillis() > backKeyPressedTime + 2000) {
+            if (this.isTaskRoot() && (System.currentTimeMillis() > backKeyPressedTime + 2000)) {
                 backKeyPressedTime = System.currentTimeMillis();
                 toast = Toast.makeText(this, "뒤로 버튼을 한번더 누르시면 종료됩니다.", Toast.LENGTH_SHORT);
                 toast.show();
                 return;
-            }
-            if (System.currentTimeMillis() <= backKeyPressedTime + 2000) {
+            } else if (this.isTaskRoot() && (System.currentTimeMillis() <= backKeyPressedTime + 2000)) {
                 this.finish();
                 toast.cancel();
+            } else if(!this.isTaskRoot()){
+                this.finish();
             }
         }
     }
