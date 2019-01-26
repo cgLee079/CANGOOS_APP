@@ -82,13 +82,15 @@ public class MainActivity extends AppCompatActivity {
         webSet.setDomStorageEnabled(true);
         webSet.setAllowFileAccess(true);
         webSet.setAllowContentAccess(true);
+
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             webSet.setTextZoom(100);
         }
 
         webView.setWebViewClient(new WebViewClient(){
 
-            /**Kakao 공유하기 처리**/
+
+            public static final String MAIL_PROTOCOL_START = "mailto:";
             public static final String INTENT_PROTOCOL_START = "intent:";
             public static final String INTENT_PROTOCOL_INTENT = "#Intent;";
             public static final String INTENT_PROTOCOL_END = ";end;";
@@ -96,6 +98,13 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                // Email 처리
+                if (url.startsWith(MAIL_PROTOCOL_START)) {
+                    startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url)));
+                    return true;
+                }
+
+                /**Kakao 공유하기 처리**/
                 if (url.startsWith(INTENT_PROTOCOL_START)) {
                     final int customUrlStartIndex = INTENT_PROTOCOL_START.length();
                     final int customUrlEndIndex = url.indexOf(INTENT_PROTOCOL_INTENT);
@@ -202,7 +211,7 @@ public class MainActivity extends AppCompatActivity {
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     request.setMimeType(mimeType);
                     request.addRequestHeader("User-Agent", userAgent);
-                    request.setDescription("Downloading file");
+                    request.setDescription("다운로드 중");
                     request.setTitle(Uri.decode(filename));
                     request.allowScanningByMediaScanner();
                     request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
@@ -233,13 +242,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        Log.i("onResume", "##########################################");
-        Log.i("onResume",      this.isTaskRoot() + "");
-
-        Log.i("###", webView.toString());
         //앱으로보기 클릭 시
         if(getIntent().getData() != null && getIntent().getData().getQueryParameter("path") != null) {
-            Log.i("onResume", "앱으로보기####");
             String url = MY_URL + getIntent().getData().getQueryParameter("path");
             webView.loadUrl(url);
         }
